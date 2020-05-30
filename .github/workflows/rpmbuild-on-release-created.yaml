@@ -8,8 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: gsfjohnson/rpmbuild@master
-      id: rpm
+    - uses: gsfjohnson/rpmbuild@el6
       with:
         spec_file: "dev/install/magma.spec"
     - uses: actions/upload-artifact@v1.0.0
