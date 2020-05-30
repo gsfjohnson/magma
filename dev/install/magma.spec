@@ -6,9 +6,15 @@ Release: 1.el6
 License: GPL 3
 Group: System Environment/Libraries
 URL: https://github.com/lavabit/magma/
-
-Source: https://github.com/lavabit/magma/archive/develop.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+
+# Convert from github downloaded format to format that rpmbuild %setup macro expects:
+#   cd /tmp
+#   curl --location --output /tmp/magma_tmp.tar.gz https://github.com/lavabit/magma/archive/develop.tar.gz
+#   mkdir /tmp/magma-7.0.0
+#   tar xf /tmp/magma_tmp.tar.gz -C /tmp/magma-7.0.0 --strip-components 1
+#   tar czf ~/rpmbuild/SOURCES/magma-7.0.0.tar.gz -C /tmp magma-7.0.0
+Source: %{name}-%{version}.tar.gz
 
 #Requires(post): policycoreutils-python
 #Requires(postun): policycoreutils-python
@@ -81,7 +87,7 @@ for SMTP, POP, IMAP, HTTP and MOLTEN,. Additional support for DMTP
 and DMAP is currently in active development.
 
 %prep
-%setup -n magma-develop
+%setup
 
 %build
 # dev/scripts/builders/build.lib.sh all # XXX: memcached check fails
