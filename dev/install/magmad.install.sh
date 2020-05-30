@@ -319,8 +319,8 @@ printf "smtp_tls_ciphers = high\n" >> /etc/postfix/main.cf
 printf "smtp_tls_loglevel = 2\n" >> /etc/postfix/main.cf 
 printf "smtp_tls_mandatory_ciphers = medium\n" >> /etc/postfix/main.cf 
 printf "smtp_tls_mandatory_protocols = SSLv3 TLSv1\n" >> /etc/postfix/main.cf 
-printf "smtp_tls_protocols = !SSLv2 !SSLv3\n" >> /etc/postfix/main.cf 
-printf "smtp_tls_security_level = may\n" >> /etc/postfix/main.cf 
+printf 'smtp_tls_protocols = !SSLv2 !SSLv3' >> /etc/postfix/main.cf
+printf "\nsmtp_tls_security_level = may\n" >> /etc/postfix/main.cf
 printf "tls_daemon_random_bytes = 128\n" >> /etc/postfix/main.cf 
 printf "tls_random_bytes = 255\n" >> /etc/postfix/main.cf 
 printf "tls_random_reseed_period = 1800s\n\n" >> /etc/postfix/main.cf 
@@ -332,7 +332,7 @@ printf "message_size_limit = 134217728\n"
 printf "virtual_mailbox_limit = 0\n\n"
 
 # Configure postfix to listen for relays on port 2525, instead of port 25, so postfix won't conflict with a magma installation.
-sed -i -e "s/^smtp\([ ]*inet\)/127.0.0.1:2525\1/" /etc/postfix/master.cf 
+sed -i -e "s/^smtp\([ ]*inet\)/127.0.0.1:2525\1/" /etc/postfix/master.cf
 
 # Route messages bound for the current domain back to magma over the loopback interface regardless of the DNS/router configuration.
 printf "\n\n$DOMAIN		smtp:[127.0.0.1]:25\n\n" >> /etc/postfix/transport
@@ -473,7 +473,7 @@ SELECTOR=`echo $DOMAIN | awk -F'.' '{ print $(NF-1) }'`
 tput setaf 1; tput bold
 printf "\n\nPublish the following record to ensure DKIM signatures operate properly.\n\n"
 tput sgr0
-openssl rsa -in "/etc/pki/dkim/private/lavabit.com.pem" -pubout -outform PEM 2> /dev/null | \
+openssl rsa -in "/etc/pki/dkim/private/${DOMAIN}.pem" -pubout -outform PEM 2> /dev/null | \
 sed -r "s/-----BEGIN PUBLIC KEY-----$//" | sed -r "s/-----END PUBLIC KEY-----//" | tr -d [:space:] | \
 awk "{ print \"$SELECTOR._domainkey IN TXT \\\"v=DKIM1; k=rsa; p=\" substr(\$1, 1, 208) \"\\\" \\\"\" substr(\$1, 209) \"\\\" ; ----- DKIM $DOMAIN\" }"
 printf "\n\n"
@@ -556,5 +556,3 @@ chcon system_u:object_r:var_run_t:s0 /var/run/magmad/
 chkconfig --add magmad
 chkconfig magmad on
 service magmad start
-
-
