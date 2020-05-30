@@ -180,7 +180,7 @@ EOF
 
 ### resources ###
 %{__install} -d %{buildroot}/var/lib/magma/resources
-%{__cp} res/{fonts,pages,templates,sql,config} %{buildroot}/var/lib/magma/resources
+%{__cp} -R res/{fonts,pages,templates,sql,config} %{buildroot}/var/lib/magma/resources
 
 ### daemon ###
 %{__install} -d %{buildroot}/usr/libexec
