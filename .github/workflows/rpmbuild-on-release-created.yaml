@@ -8,16 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: gsfjohnson/rpmbuild@el6
+    - uses: redwain/rpmbuild@el6
       id: rpm
       with:
         spec_file: "dev/install/magma.spec"
         preinstall_packages: epel-release
-    - uses: actions/upload-artifact@v2
+    - uses: redwain/upload-release-asset@master
       with:
-        name: Binaries
-        path: ${{ steps.rpm.outputs.rpm_dir }}
-    - uses: actions/upload-artifact@v2
-      with:
-        name: SRPM
-        path: ${{ steps.rpm.outputs.srpm_path }}
+        files: 'rpmbuild/SRPMS/*.rpm;rpmbuild/RPMS/*.rpm'
