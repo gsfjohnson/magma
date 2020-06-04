@@ -11,8 +11,9 @@ jobs:
     - uses: redwain/rpmbuild@el6
       id: rpm
       with:
-        spec_file: "dev/install/magma.spec"
+        spec_path: "dev/install/magma.spec"
         preinstall_packages: epel-release
     - uses: redwain/upload-release-asset@master
       with:
         files: 'rpmbuild/SRPMS/*.rpm;rpmbuild/RPMS/*.rpm'
+        github_token: ${{ secrets.GITHUB_TOKEN }}
