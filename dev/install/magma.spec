@@ -8,7 +8,7 @@ Group: System Environment/Libraries
 URL: https://github.com/lavabit/magma/
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
-# Convert from github downloaded format to format that rpmbuild %setup macro expects:
+## Convert from github downloaded format to format that rpmbuild %setup macro expects:
 #   cd /tmp
 #   curl --location --output /tmp/magma_tmp.tar.gz https://github.com/lavabit/magma/archive/develop.tar.gz
 #   mkdir /tmp/magma-7.0.0
@@ -16,10 +16,12 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 #   tar czf ~/rpmbuild/SOURCES/magma-7.0.0.tar.gz -C /tmp magma-7.0.0
 Source: %{name}-%{version}.tar.gz
 
+## selinux
 #Requires(post): policycoreutils-python
 #Requires(postun): policycoreutils-python
 #Requires(pre): shadow-utils
 #Requires: policycoreutils-python
+
 Requires: shadow-utils
 
 Requires: libbsd
@@ -35,8 +37,6 @@ Requires: memcached
 Requires: mysql mysql-server perl-DBI perl-DBD-MySQL
 Requires: haveged
 Requires: clamav clamav-db
-
-#Requires: magma-utils
 
 BuildRequires: sysstat
 BuildRequires: libstdc++
@@ -77,20 +77,12 @@ The magma server daemon, is an encrypted email system with support
 for SMTP, POP, IMAP, HTTP and MOLTEN,. Additional support for DMTP
 and DMAP is currently in active development.
 
-%package utils
-Summary: Lavabit Magma Server Utils
-Requires: magma
-
-%description utils
-The magma server daemon, is an encrypted email system with support
-for SMTP, POP, IMAP, HTTP and MOLTEN,. Additional support for DMTP
-and DMAP is currently in active development.
-
 %prep
 %setup
 
 %build
-# dev/scripts/builders/build.lib.sh all # XXX: memcached check fails
+## XXX: memcached check fails
+# dev/scripts/builders/build.lib.sh all
 
 # includes build.lib.sh without the checks
 %{__make} all
@@ -99,7 +91,7 @@ and DMAP is currently in active development.
 #%{__rm} -rf %{buildroot}
 
 ## XXX: would be nice...
-#prefix=%{buildroot} %{__make} install
+#PREFIX=%{buildroot} %{__make} install
 
 ### system directories ###
 %{__install} -d %{buildroot}/var/lib/magma/local
@@ -284,8 +276,6 @@ sed -i "s:MAGMA_VERSION=.*:MAGMA_VERSION=\$(/usr/libexec/magmad -v | grep versio
 /usr/libexec/magmad.so
 %defattr(-, magma, magma, 0644)
 /var/lib/magma/resources
-
-%files utils
 %defattr(-, root, root, 0755)
 /usr/bin/signet
 /usr/bin/dime
