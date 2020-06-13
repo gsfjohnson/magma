@@ -621,8 +621,12 @@ curl() {
     ;;
     curl-prep)
       cd "$M_SOURCES/curl"; error
-      cat "$M_PATCHES/curl/"skip_test172-version7.23.1.patch | patch -p1 --verbose &>> "$M_LOGS/curl.txt"; error
-      cat "$M_PATCHES/curl/"7.23.1_curl_exec_perm_fix.patch | patch -p1 --verbose &>> "$M_LOGS/curl.txt"; error
+      if [ "$CURL" == "curl-7.23.1" ]; then
+        cat "$M_PATCHES/curl/"skip_test172-version7.23.1.patch | patch -p1 --verbose &>> "$M_LOGS/curl.txt"; error
+        cat "$M_PATCHES/curl/"7.23.1_curl_exec_perm_fix.patch | patch -p1 --verbose &>> "$M_LOGS/curl.txt"; error
+        cat "$M_PATCHES/curl/"7.23.1_fix_ca_bundle_url.patch | patch -p1 --verbose &>> "$M_LOGS/curl.txt"; error  
+     fi
+        cat "$M_PATCHES/curl/"7.70.0_skip_test_1541.patch | patch -p1 --verbose &>> "$M_LOGS/curl.txt"; error
     ;;
     curl-build)
       # Note that if we don't include the debug configure option we can't run a check-full.
@@ -644,9 +648,9 @@ curl() {
       fi
 
       export LDFLAGS="-L$M_LDPATH -Wl,-rpath,$M_LDPATH $M_LDFLAGS"
-      export CFLAGS="$M_SYM_INCLUDES -fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CFLAGS"
-      export CXXFLAGS="$M_SYM_INCLUDES -fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CXXFLAGS"
-      export CPPFLAGS="$M_SYM_INCLUDES -fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CPPFLAGS"
+      export CFLAGS="-fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CFLAGS"
+      export CXXFLAGS="-fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CXXFLAGS"
+      export CPPFLAGS="-fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CPPFLAGS"
 
       ./configure --enable-debug --enable-static=yes \
         --without-librtmp --without-krb4 --without-krb5 --without-libssh2 \
@@ -654,7 +658,7 @@ curl() {
         --disable-file --disable-ftp --disable-ftps --disable-gopher \
         --disable-imap --disable-imaps --disable-pop3 --disable-pop3s \
         --disable-rtsp --disable-smtp --disable-smtps --disable-telnet \
-        --disable-tftp --disable-ldap --disable-ssh --disable-dict \
+        --disable-tftp --disable-ldap --disable-ssh --disable-dict --disable-smb \
         --build=x86_64-redhat-linux-gnu --target=x86_64-redhat-linux-gnu --with-pic \
         --with-ssl="$M_SOURCES/openssl" --with-zlib="$M_SOURCES/zlib" \
         --prefix="$M_LOCAL" &>> "$M_LOGS/curl.txt"; error
@@ -985,38 +989,46 @@ bzip2() {
     ;;
     bzip2-prep)
       cd "$M_SOURCES/bzip2"; error
-
-      chmod -Rf a+rX,u+w,g-w,o-w . &>> "$M_LOGS/bzip2.txt" ; error
-
-      # We use slightly different patches depending on the bzip2 version. These patches were largely
-      # ported from Red Hat.
-      if [[ $BZIP2 == "bzip2-1.0.5" ]]; then
-        cat "$M_PATCHES/bzip2/"bzip2-1.0.4-saneso.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-        cat "$M_PATCHES/bzip2/"bzip2-1.0.4-cflags.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      elif [[ $BZIP2 == "bzip2-1.0.6" ]]; then
-        cat "$M_PATCHES/bzip2/"saneso_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-        cat "$M_PATCHES/bzip2/"cflags_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-        cat "$M_PATCHES/bzip2/"bzip2recover_cve_20163189.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      fi
-
-      # These patches apply every version since 1.0.4, and were largely ported from the Gentoo repository.
-      cat "$M_PATCHES/bzip2/"bzip2-1.0.4-bzip2recover.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      cat "$M_PATCHES/bzip2/"bzip2-1.0.4-makefile-flags.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      cat "$M_PATCHES/bzip2/"bzip2-1.0.4-man-links.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      cat "$M_PATCHES/bzip2/"bzip2-1.0.6-progress.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      cat "$M_PATCHES/bzip2/"bzip2-1.0.4-posix-shell.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      cat "$M_PATCHES/bzip2/"bzip2-1.0.6-mingw.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      cat "$M_PATCHES/bzip2/"bzip2-1.0.6-out-of-tree-build.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-
-      # These patches are a mess, but were painfully ported from the Debian bzip2 repository.
-      cat "$M_PATCHES/bzip2/"man_formatting_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      cat "$M_PATCHES/bzip2/"make_modernize_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
-      cat "$M_PATCHES/bzip2/"man_path_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#
+#      chmod -Rf a+rX,u+w,g-w,o-w . &>> "$M_LOGS/bzip2.txt" ; error
+#
+#      # We use slightly different patches depending on the bzip2 version. These patches were largely
+#      # ported from Red Hat.
+#      if [[ $BZIP2 == "bzip2-1.0.5" ]]; then
+#        cat "$M_PATCHES/bzip2/"bzip2-1.0.4-saneso.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#        cat "$M_PATCHES/bzip2/"bzip2-1.0.4-cflags.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      elif [[ $BZIP2 == "bzip2-1.0.6" ]]; then
+#        cat "$M_PATCHES/bzip2/"saneso_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#        cat "$M_PATCHES/bzip2/"cflags_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#        cat "$M_PATCHES/bzip2/"bzip2recover_cve_20163189.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      fi
+#
+#      # These patches apply every version since 1.0.4, and were largely ported from the Gentoo repository.
+#      cat "$M_PATCHES/bzip2/"bzip2-1.0.4-bzip2recover.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      cat "$M_PATCHES/bzip2/"bzip2-1.0.4-makefile-flags.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      cat "$M_PATCHES/bzip2/"bzip2-1.0.4-man-links.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      cat "$M_PATCHES/bzip2/"bzip2-1.0.6-progress.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      cat "$M_PATCHES/bzip2/"bzip2-1.0.4-posix-shell.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      cat "$M_PATCHES/bzip2/"bzip2-1.0.6-mingw.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      cat "$M_PATCHES/bzip2/"bzip2-1.0.6-out-of-tree-build.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#
+#      # These patches are a mess, but were painfully ported from the Debian bzip2 repository.
+#      cat "$M_PATCHES/bzip2/"man_formatting_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      cat "$M_PATCHES/bzip2/"make_modernize_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
+#      cat "$M_PATCHES/bzip2/"man_path_1.0.6.patch | patch -p1 --verbose &>> "$M_LOGS/bzip2.txt" ; error
     ;;
     bzip2-build)
       cd "$M_SOURCES/bzip2"; error
-      make CC=gcc AR=ar RANLIB=ranlib CFLAGS='-g3 -fPIC -rdynamic -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -D_FILE_OFFSET_BITS=64' &>> "$M_LOGS/bzip2.txt" ; error
+      make -f Makefile-libbz2_so CC="gcc -g3 -fPIC -rdynamic -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -D_FILE_OFFSET_BITS=64 $LDFLAGS" &>> "$M_LOGS/bzip2.txt" ; error
+  		make bzip2 bzip2recover CC="gcc -g3 -fPIC -rdynamic -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -D_FILE_OFFSET_BITS=64 $LDFLAGS" &>> "$M_LOGS/bzip2.txt" ; error
+#      make CC=gcc AR=ar RANLIB=ranlib CFLAGS='-g3 -fPIC -rdynamic -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -D_FILE_OFFSET_BITS=64' &>> "$M_LOGS/bzip2.txt" ; error
+
+			BZIP2_VERSION="`echo $BZIP2 | sed "s/bzip2-//g"`"
       make PREFIX="$M_LOCAL" install &>> "$M_LOGS/bzip2.txt" ; error
+      cp -a libbz2.so.$BZIP2_VERSION "$M_LOCAL/lib/" &>> "$M_LOGS/bzip2.txt" ; error
+		  ( cd "$M_LOCAL/lib/" ; ln -f -s libbz2.so.$BZIP2_VERSION "libbz2.so" ) &>> "$M_LOGS/bzip2.txt" ; error
+  		( cd "$M_LOCAL/lib/" ; ln -f -s libbz2.so.$BZIP2_VERSION "libbz2.so.1" ) &>> "$M_LOGS/bzip2.txt" ; error
+  		cd "$M_SOURCES/bzip2"; error
     ;;
     bzip2-check)
       cd "$M_SOURCES/bzip2"; error
@@ -1281,13 +1293,21 @@ clamav() {
 
         # Fix the zlib version check, so that 1.2.10+ doesn't trigger a spurious error.
         cat "$M_PATCHES/clamav/"zlib_check_0992.patch | patch -p1 --verbose &>> "$M_LOGS/clamav.txt"; error
-      else
+      elif [[ $CLAMAV =~ "clamav-0.100.2" ]]; then
         # Add the shutdown and clean up functions and fix the rar library dynamic loading logic.
         cat "$M_PATCHES/clamav/"shutdown_rarload_01001.patch | patch -p1 --fuzz=100 --verbose &>> "$M_LOGS/clamav.txt"; error
 
         # Output the version number and not the git commit hash.
         cat "$M_PATCHES/clamav/"version_0984.patch | patch -p1 --verbose &>> "$M_LOGS/clamav.txt"; error
+			else 
+				# Add the shutdown and clean up functions and fix the rar library dynamic loading logic.
+        cat "$M_PATCHES/clamav/"shutdown_rarload_01023.patch | patch -p1 --fuzz=100 --verbose &>> "$M_LOGS/clamav.txt"; error
 
+        # Add the ability to dictate the CA bundle file location when running freshclam.
+        cat "$M_PATCHES/clamav/"freshclam_cafile_option_01023.patch | patch -p1 --verbose &>> "$M_LOGS/clamav.txt"; error
+        
+        # Output the version number and not the git commit hash.
+        cat "$M_PATCHES/clamav/"version_0984.patch | patch -p1 --verbose &>> "$M_LOGS/clamav.txt"; error
       fi
 
       # Fix reference conflict with libpng over the filename png.h.
@@ -1321,13 +1341,14 @@ clamav() {
       fi
 
       export LDFLAGS="-L$M_LDPATH -Wl,-rpath,$M_LDPATH $M_LDFLAGS"
-      export CFLAGS="$M_SYM_INCLUDES -fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 -DGNU_SOURCE $M_CFLAGS"
-      export CXXFLAGS="$M_SYM_INCLUDES -fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 -DGNU_SOURCE $M_CXXFLAGS"
-      export CPPFLAGS="$M_SYM_INCLUDES -fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 -DGNU_SOURCE $M_CPPFLAGS"
+      export CFLAGS="-fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 -DGNU_SOURCE $M_CFLAGS"
+      export CXXFLAGS="-fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 -DGNU_SOURCE $M_CXXFLAGS"
+      export CPPFLAGS="-fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 -DGNU_SOURCE $M_CPPFLAGS"
 
       # --disable-mempool
       ./configure  \
-        --enable-check --enable-static --enable-shared --disable-llvm --disable-silent-rules \
+        --enable-check --enable-static --enable-shared --disable-llvm --disable-silent-rules --disable-clamonacc \
+				--disable-clamsubmit --disable-clamdtop --disable-milter \
         --with-openssl="$M_LOCAL" --with-zlib="$M_LOCAL" --with-xml="$M_LOCAL" --with-libcurl="$M_LOCAL" \
         --with-pcre="$M_LOCAL" --with-systemdsystemunitdir="no" \
         --with-libbz2-prefix="$M_LOCAL" --with-libcheck-prefix="$M_LOCAL" \
@@ -2080,6 +2101,12 @@ utf8proc() {
       if [[ $UTF8PROC =~ "utf8proc-1.3.1" ]]; then
         cat "$M_PATCHES/utf8proc/"utf8proc.release.version.patch | patch -p1 --verbose &>> "$M_LOGS/utf8proc.txt"; error
       fi
+      
+      # For v2.3.0 and higher, we resurect the unifont download targets.
+      UTF8PROC_VERSION="`echo $UTF8PROC | sed \"s/utf8proc-//g\"`"
+      if [ `(echo 2.3.0; echo $UTF8PROC_VERSION) | sort -Vk3 | tail -1` != "2.3.0" ]; then
+        cat "$M_PATCHES/utf8proc/"unifont.download.patch | patch -p1 --verbose &>> "$M_LOGS/utf8proc.txt"; error
+      fi
     ;;
     utf8proc-build)
       cd "$M_SOURCES/utf8proc"; error
@@ -2190,6 +2217,13 @@ memcached() {
     	  # Enable parallel builds. Note man pages must be made with --jobs=1 or it will fail.
     	  cat "$M_PATCHES/memcached/"1.0.18_enable_parallel_build.patch  | patch -p1 --verbose &>> "$M_LOGS/memcached.txt"; error
     	  
+    	  # Handle certain types of errors in unit tests properly.
+    	  cat "$M_PATCHES/memcached/"1.0.18_fix_conn_test_errors.patch | patch -p1 --verbose &>> "$M_LOGS/memcached.txt"; error
+    	  cat "$M_PATCHES/memcached/"1.0.18_fix_allocation_test.patch | patch -p1 --verbose &>> "$M_LOGS/memcached.txt"; error
+#    	  cat "$M_PATCHES/memcached/"1.0.18_disable_mcheck.patch | patch -p1 --verbose &>> "$M_LOGS/memcached.txt"; error
+#    	  cat "$M_PATCHES/memcached/"1.0.18_disable_mcheck_conf.patch | patch -p1 --verbose &>> "$M_LOGS/memcached.txt"; error
+#    	  cat "$M_PATCHES/memcached/"1.0.18_fix_memcached_opts.patch | patch -p1 --verbose &>> "$M_LOGS/memcached.txt"; error
+    	  
   			# We need to reset the modification time on these files after applying the parallelization patch, or an autoreconf will be triggered.
     	  touch -t 201402090552.42 Makefile.am && touch -t 201402090552.42 man/include.am
     	  
@@ -2212,9 +2246,9 @@ memcached() {
       #   M_EXTRA=""
       # fi
 
-      export CFLAGS="$M_SYM_INCLUDES -fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CFLAGS"
-      export CXXFLAGS="$M_SYM_INCLUDES -fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CXXFLAGS"
-      export CPPFLAGS="$M_SYM_INCLUDES -fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CPPFLAGS"
+      export CFLAGS="-fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CFLAGS"
+      export CXXFLAGS="-fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CXXFLAGS"
+      export CPPFLAGS="-fPIC -g3 -rdynamic -D_FORTIFY_SOURCE=2 $M_CPPFLAGS"
 
       # Recent versions of gcc require libmemcached to be explicitly linked with libm.so and libstdc++.so, and configure
       # doesn't appear to include these libraries automatically.
@@ -2223,16 +2257,19 @@ memcached() {
       # For some reason, the unit tests will fail if this environment variable is configured.
       unset MEMCACHED_SERVERS
 
-      # export GEARMAND_BINARY="/usr/local/sbin/gearmand"
-      # export MEMCACHED_BINARY="/usr/local/bin/memcached"
-      # --with-memcached="/usr/local/bin/memcached"
-
-      # Options used for 1.0.3+
-      ./configure --disable-silent-rules --disable-dtrace --disable-sasl --enable-static --enable-shared --with-pic \
-        --prefix="$M_LOCAL" &>> "$M_LOGS/memcached.txt"; error
-
-      unset CFLAGS; unset CXXFLAGS; unset CPPFLAGS; unset LIBS; unset M_EXTRA
-      # unset GEARMAND_BINARY; unset MEMCACHED_BINARY
+			# Find the memcached binary, and configure accordingly.
+			# --enable-memaslap=off
+			# --disable-silent-rules
+      MEMCACHED_BINARY="`which memcached`"
+			if [ "$MEMCACHED_BINARY" != "" ]; then
+			 ./configure --disable-dtrace --disable-sasl --enable-static --enable-shared --with-pic \
+         --enable-jobserver=no --with-memcached="$MEMCACHED_BINARY" --prefix="$M_LOCAL" &>> "$M_LOGS/memcached.txt"; error
+			else
+				./configure --disable-dtrace --disable-sasl --enable-static --enable-shared --with-pic \ 
+         --enable-jobserver=no --prefix="$M_LOCAL" &>> "$M_LOGS/memcached.txt"; error
+			fi
+      
+      unset CFLAGS; unset CXXFLAGS; unset CPPFLAGS; unset LIBS; unset M_EXTRA ; unset MEMCACHED_BINARY
 
       make --jobs=4 &>> "$M_LOGS/memcached.txt"; error
       make install &>> "$M_LOGS/memcached.txt"; error
@@ -2426,7 +2463,7 @@ combine() {
     ! -f "$M_SOURCES/clamav/libclamav/.libs/libclamav.a" || \
     ! -f "$M_SOURCES/clamav/libclamav/.libs/libclamunrar.a" || \
     ! -f "$M_SOURCES/clamav/libclamav/.libs/libclamunrar_iface.a" || \
-    ! -f "$M_SOURCES/clamav/libclamav/libmspack-0.5alpha/.libs/libclammspack.a" || \
+    ! -f "$M_SOURCES/clamav/libclamav/.libs/libclammspack.a" || \
     ! -f "$M_SOURCES/clamav/libltdl/.libs/libltdlc.a" || \
     ! -f "$M_SOURCES/openssl/libcrypto.a" || \
     ! -f "$M_SOURCES/openssl/libssl.a" || \
@@ -2528,7 +2565,7 @@ combine() {
 
   mkdir "$M_OBJECTS/clamav/mspack" &>> "$M_LOGS/combine.txt"; error
   cd "$M_OBJECTS/clamav/mspack" &>> "$M_LOGS/combine.txt"; error
-  ar xv "$M_SOURCES/clamav/libclamav/libmspack-0.5alpha/.libs/libclammspack.a" &>> "$M_LOGS/combine.txt"; error
+  ar xv "$M_SOURCES/clamav/libclamav/.libs/libclammspack.a" &>> "$M_LOGS/combine.txt"; error
 
   rm -rf "$M_OBJECTS/crypto" &>> "$M_LOGS/combine.txt"; error
   mkdir "$M_OBJECTS/crypto" &>> "$M_LOGS/combine.txt"; error
@@ -2650,7 +2687,21 @@ load() {
     sed "s/extern //" | \
     sed "s/;/ = NULL;/g" \
     >> magma.open.symbols.c; error
-  echo "const char * symbols_check(void *magma) {" >> magma.open.symbols.c; error
+  
+  # Check whether the function pointers can be assigned.
+  echo "const char * symbols_check_assign(void) {" >> magma.open.symbols.c; error
+  cat magma.open.symbols.h | \
+    grep "extern" | \
+    awk -F'(' '{print $2}' | \
+    grep -v '^$' | \
+    tr -d '*' | sed 's/_d)//' | \
+    sed 's/SSL_COMP)/SSL_COMP_get_compression_methods/g' | \
+    awk '{ print $1 "_d = &" $1 ";" }' >> magma.open.symbols.c; error
+  echo "return NULL;" >> magma.open.symbols.c; error
+  echo "}" >> magma.open.symbols.c; error
+  
+  # Check whether the symbols can be loaded at runtime.
+  echo "const char * symbols_check_load(void *magma) {" >> magma.open.symbols.c; error
   cat magma.open.symbols.h | \
     grep "extern" | \
     awk -F'(' '{print $2}' | \
@@ -2668,32 +2719,32 @@ load() {
   # sed -i -e "s/SSL_COMP)/SSL_COMP_get_compression_methods/g" magma.open.symbols.c; error
 
   # The name dkim_getsighdr_d is taken by the OpenDKIM library, so we had to break convention and use dkim_getsighdrx_d.
+  sed -i -e "s/\&dkim_getsighdrx\;/\&dkim_getsighdr\;/g" magma.open.symbols.c; error
   sed -i -e "s/\"dkim_getsighdrx\"/\"dkim_getsighdr\"/g" magma.open.symbols.c; error
 
   # Compile the source files. If an error occurs at compile time it is probably because we have a mismatch somewhere.
-  gcc -D_REENTRANT -D_GNU_SOURCE -DHAVE_NS_TYPE -D_LARGEFILE64_SOURCE $M_SYM_INCLUDES $M_SO \
-    -g3 -rdynamic -Wall -Wextra -Werror -o magma.open.check magma.open.check.c magma.open.symbols.c -ldl; error
+  # Alternatively, we could use the syntax "-L$M_PROJECT_ROOT -l:magmad.so" ...
+  gcc -D_REENTRANT -D_GNU_SOURCE -DHAVE_NS_TYPE -D_LARGEFILE64_SOURCE $M_SYM_INCLUDES \
+    -g3 -rdynamic -Wall -Wextra -Werror -o magma.open.check magma.open.check.c magma.open.symbols.c $M_SO -ldl
 
   # If errors are generated from invalid symbols, this should print out the specific lines that are invalid.
   if [ $? -ne 0 ]; then
 
-    LNS=`gcc -D_REENTRANT -D_GNU_SOURCE -DHAVE_NS_TYPE -D_LARGEFILE64_SOURCE $M_SYM_INCLUDES $M_SO -g3 -rdynamic -Wall -Wextra -Werror \
-      -o magma.open.check magma.open.check.c magma.open.symbols.c -ldl 2>&1 | grep "magma.open.symbols.c" | awk -F':' '{ print $2 }' | \
+    LNS=`gcc -D_REENTRANT -D_GNU_SOURCE -DHAVE_NS_TYPE -D_LARGEFILE64_SOURCE $M_SYM_INCLUDES -g3 -rdynamic -Wall -Wextra -Werror \
+      -o magma.open.check magma.open.check.c magma.open.symbols.c $M_SO -ldl 2>&1 | grep "magma.open.symbols.c" | awk -F':' '{ print $2 }' | \
       grep "[0-9*]" | awk '{print $1 ", " }' | sort -gu | uniq | tr -d "\n" | sed "s/, $//g"`
 
     # Only output the symbol info we found lines to print.
     if [ "$LNS" != "" ]; then
 
-      printf "printing invalid symbols...\n"
-      echo "lines = " $LNS
-      echo ""
+      printf "\n\nPrinting the invalid symbols...\n\n"
 
-      LNS=`gcc -D_REENTRANT -D_GNU_SOURCE -DHAVE_NS_TYPE -D_LARGEFILE64_SOURCE $M_SYM_INCLUDES $M_SO -g3 -rdynamic -Wall -Wextra -Werror \
-        -o magma.open.check magma.open.check.c magma.open.symbols.c -ldl 2>&1 | grep "magma.open.symbols.c" | awk -F':' '{ print $2 }' | \
+      LNS=`gcc -D_REENTRANT -D_GNU_SOURCE -DHAVE_NS_TYPE -D_LARGEFILE64_SOURCE $M_SYM_INCLUDES -L$M_PROJECT_ROOT -l:magmad.so -g3 -rdynamic -Wall -Wextra -Werror \
+        -o magma.open.check magma.open.check.c magma.open.symbols.c $M_SO -ldl 2>&1 | grep "magma.open.symbols.c" | awk -F':' '{ print $2 }' | \
         grep "[0-9*]" | awk '{print $1 "p;" }' | sort -gu | uniq | tr -d "\n"`
 
-      cat magma.open.symbols.c | sed -n "$LNS"; error
-
+      cat magma.open.symbols.c | sed -n "$LNS" | sed "s/.*\&\(.*\)\;.*/\1/g" | sort | uniq
+      
     fi
 
     echo ""
@@ -2796,10 +2847,11 @@ combo() {
     ($M_BUILD "freetype-$1") & FREETYPE_PID=$!
     ($M_BUILD "tokyocabinet-$1") & TOKYOCABINET_PID=$!
 
-    # ClamAV requires zlib (above) and bzip (above), pcre and xml2.
+    # ClamAV requires zlib (above) and bzip (above), curl, pcre and xml2.
     wait $XML2_PID; error
     wait $PCRE_PID; error
-
+		wait $CURL_PID; error
+		
     ($M_BUILD "clamav-$1") & CLAMAV_PID=$!
 
     # The gd library requires zlib (above), png (above), jpeg (above) and freetype.
@@ -2811,10 +2863,6 @@ combo() {
     wait $MARIADB_PID; error
 
     ($M_BUILD "dspam-$1") & DSPAM_PID=$!
-
-    # The utf8proc library requires curl.
-    wait $CURL_PID; error
-
     ($M_BUILD "utf8proc-$1") & UTF8PROC_PID=$!
 
     # Wait on any remaining build jobs.
