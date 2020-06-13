@@ -111,6 +111,7 @@ printf "# chkconfig: - 54 25\n" > %{buildroot}/etc/chkconfig.d/haveged
 %{__install} --no-target-directory dev/install/magmad.sysv.init.sh %{buildroot}/etc/rc.d/init.d/magmad
 
 ### sysctl ###
+# XXX: create file in git
 if [ ! -f dev/install/magmad.sysctl.conf ]; then
 %{__cat} <<EOF >dev/install/magmad.sysctl.conf
 kernel.random.read_wakeup_threshold = 64
@@ -293,11 +294,14 @@ fx_passwd_l () {
   /bin/echo passwd -l "$1"
   /usr/sbin/passwd -l "$1" >/dev/null 2>&1
 }
-getent passwd magma >/dev/null 2>&1 || \
-  fx_useradd --system --no-create-home --home-dir /var/lib/magma --shell /sbin/nologin --comment "Lavabit Magma Daemon" magma && \
-  fx_passwd_l magma
 #
-fx_printf "\n"
+if [ "$1" != "2" ]; then # 1 = install(?) ; 2 = upgrade
+  getent passwd magma >/dev/null 2>&1 || \
+    fx_useradd --system --no-create-home --home-dir /var/lib/magma --shell /sbin/nologin --comment "Lavabit Magma Daemon" magma && \
+    fx_passwd_l magma
+  #
+  fx_printf "\n"
+fi
 exit 0
 
 %post
@@ -333,83 +337,85 @@ fx_openssl () {
   /usr/bin/openssl "$@" >/dev/null 2>&1
 }
 #
-# default domain
-DOMAIN="$(/bin/hostname -f)"
-[ "$DOMAIN" == "" ] && DOMAIN=example
-#
-# default selector
-SELECTOR="$(/bin/hostname -s)"
-[ "$SELECTOR" == "" ] && SELECTOR=`openssl rand -hex 6`
-#
-# generate dkim key unless exists
-DKIMKEY="/etc/pki/dkim/private/${DOMAIN}.pem"
-if [ ! -f $DKIMKEY ]; then
-  fx_openssl genrsa -out $DKIMKEY 2048
-  fx_chmod 600 $DKIMKEY
-  fx_chcon unconfined_u:object_r:cert_t:s0 $DKIMKEY
+if [ "$1" != "2" ]; then # 1 = install(?) ; 2 = upgrade
+  # default domain
+  DOMAIN="$(/bin/hostname -f)"
+  [ "$DOMAIN" == "" ] && DOMAIN=example
   #
-  # provide dkim TXT
-  fx_printf "\n\nPublish the following record to ensure DKIM signatures operate properly.\n\n"
-  fx_openssl rsa -in "/etc/pki/dkim/private/${DOMAIN}.pem" -pubout -outform PEM | \
-    sed -r "s/-----BEGIN PUBLIC KEY-----$//" | \
-    sed -r "s/-----END PUBLIC KEY-----//" | \
-    tr -d [:space:] | \
-    awk "{ print \"$SELECTOR._domainkey IN TXT \\\"v=DKIM1; k=rsa; p=\" substr(\$1, 1, 208) \"\\\" \\\"\" substr(\$1, 209) \"\\\" ; ----- DKIM $DOMAIN\" }"
+  # default selector
+  SELECTOR="$(/bin/hostname -s)"
+  [ "$SELECTOR" == "" ] && SELECTOR=`openssl rand -hex 6`
+  #
+  # generate dkim key unless exists
+  DKIMKEY="/etc/pki/dkim/private/${DOMAIN}.pem"
+  if [ ! -f $DKIMKEY ]; then
+    fx_openssl genrsa -out $DKIMKEY 2048
+    fx_chmod 600 $DKIMKEY
+    fx_chcon unconfined_u:object_r:cert_t:s0 $DKIMKEY
+    #
+    # provide dkim TXT
+    fx_printf "\n\nPublish the following record to ensure DKIM signatures operate properly.\n\n"
+    fx_openssl rsa -in "/etc/pki/dkim/private/${DOMAIN}.pem" -pubout -outform PEM | \
+      sed -r "s/-----BEGIN PUBLIC KEY-----$//" | \
+      sed -r "s/-----END PUBLIC KEY-----//" | \
+      tr -d [:space:] | \
+      awk "{ print \"$SELECTOR._domainkey IN TXT \\\"v=DKIM1; k=rsa; p=\" substr(\$1, 1, 208) \"\\\" \\\"\" substr(\$1, 209) \"\\\" ; ----- DKIM $DOMAIN\" }"
+  fi
+  #
+  # generate tls key unless exists
+  TLSKEY="/etc/pki/tls/private/${DOMAIN}.pem"
+  if [ ! -f $TLSKEY ]; then
+    fx_openssl req -x509 -text -nodes -batch -days 1826 -newkey rsa:4096 -keyout "$TLSKEY" -out "$TLSKEY"
+    fx_chmod 600 $TLSKEY
+    fx_chcon unconfined_u:object_r:cert_t:s0 $TLSKEY
+  fi
+  #
+  fx_printf "\nReset ownership, mode, and selinux contexts.\n"
+  fx_chcon -R system_u:object_r:cert_t:s0 /etc/pki/dime
+  fx_chcon -R system_u:object_r:cert_t:s0 /etc/pki/dkim
+  fx_chcon system_u:object_r:bin_t:s0 /usr/libexec/magmad
+  fx_chcon system_u:object_r:bin_t:s0 /usr/libexec/magmad.so
+  fx_chown -R magma:magma /var/spool/magma
+  fx_chcon -R system_u:object_r:var_spool_t:s0 /var/spool/magma
+  fx_chcon -R system_u:object_r:var_log_t:s0 /var/log/magma
+  fx_chmod 600 /etc/cron.d/magma-log-cleanup
+  fx_chcon system_u:object_r:system_cron_spool_t:s0 /etc/cron.d/magma-log-cleanup
+  fx_chcon -R system_u:object_r:var_lib_t:s0 /var/lib/magma
+  fx_chcon system_u:object_r:initrc_exec_t:s0 /etc/rc.d/init.d/magmad
+  fx_chcon system_u:object_r:var_run_t:s0 /var/run/magmad
+  fx_chcon system_u:object_r:etc_t:s0 /etc/logrotate.d/postfix
+  fx_chcon system_u:object_r:etc_t:s0 /etc/security/limits.d/50-magmad.conf
+  fx_chcon system_u:object_r:etc_t:s0 /etc/sysctl.d/magmad.conf
+  #
+  TOTALMEM=`free -k | grep -E "^Mem:" | awk -F' ' '{print $2}'`
+  HALFMEM=`echo $(($TOTALMEM/2))`
+  MAGMA_SEC_LIMITS=/etc/security/limits.d/50-magmad.conf
+  /bin/grep "sedHALFMEM" $MAGMA_SEC_LIMITS >/dev/null 2>&1 && \
+    fx_sed_i "s:sedHALFMEM:$HALFMEM:g" $MAGMA_SEC_LIMITS
+  #
+  fx_sysctl /etc/sysctl.d/magmad.conf
+  #
+  fx_printf "\nQuickstart:\n"
+  fx_printf "  1. Enable & start services:  haveged, memcached, mysql\n"
+  fx_printf "  2. Create database, database credential, & access grant.\n"
+  fx_printf "       mysqladmin -uroot --force=true create Magma\n"
+  fx_printf "       PMAGMA=\`openssl rand -base64 30 | sed -e 's/\//@-/g; s/\+/_\?/g'\`\n"
+  fx_printf "       mysql --execute=\"CREATE USER 'magma'@'localhost' IDENTIFIED BY '\$PMAGMA'\"\n"
+  fx_printf "       mysql --execute=\"GRANT ALL ON *.* TO 'magma'@'localhost'\"\n"
+  fx_printf "       mysql --execute=\"GRANT SELECT, INSERT, UPDATE, DELETE ON Lavabit.* TO 'magma'@'localhost'\"\n"
+  fx_printf "  3. Init database schema.\n"
+  fx_printf "       cd /usr/share/doc/magma-x.x.x\n"
+  fx_printf "       ./scripts/database/schema.init.sh magma \$PMAGMA Magma\n"
+  fx_printf "  4. Configure database credentials in /etc/magmad.config\n"
+  fx_printf "  5. Create dime key and signet\n"
+  fx_printf "       cd /etc/pki/dime/private; signet -g orgid\n"
+  fx_printf "  6. Update postfix config & reload it\n"
+  fx_printf "  7. Enable & start service: magmad\n"
+  #
+  fx_printf "\n"
 fi
-#
-# generate tls key unless exists
-TLSKEY="/etc/pki/tls/private/${DOMAIN}.pem"
-if [ ! -f $TLSKEY ]; then
-  fx_openssl req -x509 -text -nodes -batch -days 1826 -newkey rsa:4096 -keyout "$TLSKEY" -out "$TLSKEY"
-  fx_chmod 600 $TLSKEY
-  fx_chcon unconfined_u:object_r:cert_t:s0 $TLSKEY
-fi
-#
-fx_printf "\nReset ownership, mode, and selinux contexts.\n"
-fx_chcon -R system_u:object_r:cert_t:s0 /etc/pki/dime
-fx_chcon -R system_u:object_r:cert_t:s0 /etc/pki/dkim
-fx_chcon system_u:object_r:bin_t:s0 /usr/libexec/magmad
-fx_chcon system_u:object_r:bin_t:s0 /usr/libexec/magmad.so
-fx_chown -R magma:magma /var/spool/magma
-fx_chcon -R system_u:object_r:var_spool_t:s0 /var/spool/magma
-fx_chcon -R system_u:object_r:var_log_t:s0 /var/log/magma
-fx_chmod 600 /etc/cron.d/magma-log-cleanup
-fx_chcon system_u:object_r:system_cron_spool_t:s0 /etc/cron.d/magma-log-cleanup
-fx_chcon -R system_u:object_r:var_lib_t:s0 /var/lib/magma
-fx_chcon system_u:object_r:initrc_exec_t:s0 /etc/rc.d/init.d/magmad
-fx_chcon system_u:object_r:var_run_t:s0 /var/run/magmad
-fx_chcon system_u:object_r:etc_t:s0 /etc/logrotate.d/postfix
-fx_chcon system_u:object_r:etc_t:s0 /etc/security/limits.d/50-magmad.conf
-fx_chcon system_u:object_r:etc_t:s0 /etc/sysctl.d/magmad.conf
-#
-TOTALMEM=`free -k | grep -E "^Mem:" | awk -F' ' '{print $2}'`
-HALFMEM=`echo $(($TOTALMEM/2))`
-MAGMA_SEC_LIMITS=/etc/security/limits.d/50-magmad.conf
-/bin/grep "sedHALFMEM" $MAGMA_SEC_LIMITS >/dev/null 2>&1 && \
-  fx_sed_i "s:sedHALFMEM:$HALFMEM:g" $MAGMA_SEC_LIMITS
-#
-fx_sysctl /etc/sysctl.d/magmad.conf
-#
-fx_printf "\nQuickstart:\n"
-fx_printf "  1. Enable & start services:  haveged, memcached, mysql\n"
-fx_printf "  2. Create database, database credential, & access grant.\n"
-fx_printf "       mysqladmin -uroot --force=true create Magma\n"
-fx_printf "       PMAGMA=\`openssl rand -base64 30 | sed -e 's/\//@-/g; s/\+/_\?/g'\`\n"
-fx_printf "       mysql --execute=\"CREATE USER 'magma'@'localhost' IDENTIFIED BY '\$PMAGMA'\"\n"
-fx_printf "       mysql --execute=\"GRANT ALL ON *.* TO 'magma'@'localhost'\"\n"
-fx_printf "       mysql --execute=\"GRANT SELECT, INSERT, UPDATE, DELETE ON Lavabit.* TO 'magma'@'localhost'\"\n"
-fx_printf "  3. Init database schema.\n"
-fx_printf "       cd /usr/share/doc/magma-x.x.x\n"
-fx_printf "       ./scripts/database/schema.init.sh magma \$PMAGMA Magma\n"
-fx_printf "  4. Configure database credentials in /etc/magmad.config\n"
-fx_printf "  5. Create dime key and signet\n"
-fx_printf "       cd /etc/pki/dime/private; signet -g orgid\n"
-fx_printf "  6. Update postfix config & reload it\n"
-fx_printf "  7. Enable & start service: magmad\n"
-#
-fx_printf "\n"
 exit 0
 
 %changelog
-* Sun May 3 2020 Glen <gfjohnson@redwain.com> - 7.0.0-1.el6
+* Sun May 3 2020 gsfjohnson - 7.0.0-1.el6
 - Created spec
